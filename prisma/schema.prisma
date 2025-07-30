@@ -1,0 +1,163 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  role          Role      @default(VIEWER)
+  team          String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts         Account[]
+  sessions         Session[]
+  assignedReports  Report[]          @relation("AssignedReports")
+  assignedBy       Assignment[]      @relation("AssignedBy")
+  engineerAssignments Assignment[]   @relation("EngineerAssignments")
+  comments         ReportComment[]
+
+  @@map("users")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+enum Role {
+  ADMIN
+  ENGINEER
+  VIEWER
+}
+
+enum ReportStatus {
+  NEW
+  IN_PROGRESS
+  RESOLVED
+  DUPLICATE
+  REJECTED
+}
+
+enum Severity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model Report {
+  id                 String        @id @default(cuid())
+  reporterName       String?
+  reporterEmail      String?
+  title              String
+  description        String        @db.Text
+  affectedSystem     String?
+  severity           Severity?
+  bugType            String?
+  status             ReportStatus  @default(NEW)
+  assignedEngineerId String?
+  duplicateOfId      String?
+  aiAnalysis         Json?
+  embedding          String?       // Store as JSON string for vector
+  fileUrls           String[]
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  assignedEngineer User?           @relation("AssignedReports", fields: [assignedEngineerId], references: [id])
+  duplicateOf      Report?         @relation("DuplicateReports", fields: [duplicateOfId], references: [id])
+  duplicates       Report[]        @relation("DuplicateReports")
+  assignments      Assignment[]
+  comments         ReportComment[]
+
+  @@map("reports")
+}
+
+model Team {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  bugTypes    String[]
+  createdAt   DateTime @default(now())
+
+  @@map("teams")
+}
+
+model Assignment {
+  id         String           @id @default(cuid())
+  reportId   String
+  engineerId String
+  assignedBy String
+  assignedAt DateTime         @default(now())
+  status     AssignmentStatus @default(ACTIVE)
+
+  report         Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  engineer       User   @relation("EngineerAssignments", fields: [engineerId], references: [id])
+  assignedByUser User   @relation("AssignedBy", fields: [assignedBy], references: [id])
+
+  @@map("assignments")
+}
+
+enum AssignmentStatus {
+  ACTIVE
+  COMPLETED
+  REASSIGNED
+}
+
+model ReportComment {
+  id        String   @id @default(cuid())
+  reportId  String
+  userId    String
+  comment   String   @db.Text
+  createdAt DateTime @default(now())
+
+  report Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@map("report_comments")
+}

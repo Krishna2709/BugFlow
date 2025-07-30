@@ -1,0 +1,33 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "devCommand": "npm run dev",
+  "installCommand": "npm install",
+  "functions": {
+    "app/api/inngest/route.ts": {
+      "maxDuration": 300
+    },
+    "app/api/reports/submit/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/reports/export/route.ts": {
+      "maxDuration": 120
+    }
+  },
+  "env": {
+    "NEXTAUTH_SECRET": "@nextauth-secret",
+    "DATABASE_URL": "@database-url",
+    "OPENAI_API_KEY": "@openai-api-key",
+    "INNGEST_EVENT_KEY": "@inngest-event-key",
+    "INNGEST_SIGNING_KEY": "@inngest-signing-key",
+    "UPLOADTHING_SECRET": "@uploadthing-secret",
+    "UPLOADTHING_APP_ID": "@uploadthing-app-id"
+  },
+  "regions": ["iad1"],
+  "rewrites": [
+    {
+      "source": "/api/inngest",
+      "destination": "/api/inngest/route"
+    }
+  ]
+}
