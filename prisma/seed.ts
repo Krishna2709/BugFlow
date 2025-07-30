@@ -4,295 +4,190 @@ import bcrypt from 'bcryptjs'
 const prisma = new PrismaClient()
 
 async function main() {
-  console.log('🌱 Starting database seed...')
+  console.log('🌱 Starting database seeding...')
 
-  // Create teams
-  console.log('Creating teams...')
-  const teams = await Promise.all([
-    prisma.team.upsert({
-      where: { name: 'Security' },
-      update: {},
-      create: {
-        name: 'Security',
-        description: 'Security vulnerabilities and authentication issues',
-        bugTypes: [
-          'Authentication Bypass',
-          'Authorization',
-          'CSRF',
-          'Session Management',
-          'Cryptography',
-          'Information Disclosure'
-        ],
-      },
-    }),
-    prisma.team.upsert({
-      where: { name: 'Frontend' },
-      update: {},
-      create: {
-        name: 'Frontend',
-        description: 'Client-side vulnerabilities and UI issues',
-        bugTypes: [
-          'XSS',
-          'DOM-based XSS',
-          'Client-side Injection',
-          'CORS',
-          'Content Security Policy'
-        ],
-      },
-    }),
-    prisma.team.upsert({
-      where: { name: 'Backend' },
-      update: {},
-      create: {
-        name: 'Backend',
-        description: 'Server-side vulnerabilities and API issues',
-        bugTypes: [
-          'SQL Injection',
-          'API Security',
-          'Input Validation',
-          'Business Logic',
-          'Command Injection',
-          'Path Traversal'
-        ],
-      },
-    }),
-    prisma.team.upsert({
-      where: { name: 'Infrastructure' },
-      update: {},
-      create: {
-        name: 'Infrastructure',
-        description: 'Infrastructure and network security',
-        bugTypes: [
-          'Network Security',
-          'Denial of Service',
-          'Configuration',
-          'Server-Side Request Forgery',
-          'Remote Code Execution'
-        ],
-      },
-    }),
-  ])
-
-  console.log(`✅ Created ${teams.length} teams`)
-
-  // Create admin user
-  console.log('Creating admin user...')
-  const adminPassword = await bcrypt.hash(
-    process.env.ADMIN_PASSWORD || 'admin123',
-    12
-  )
-
-  const adminUser = await prisma.user.upsert({
-    where: { email: process.env.ADMIN_EMAIL || 'admin@bugflow.com' },
+  // Create system user for automated comments
+  const systemUser = await prisma.user.upsert({
+    where: { id: 'system' },
     update: {},
     create: {
-      email: process.env.ADMIN_EMAIL || 'admin@bugflow.com',
-      name: 'System Administrator',
+      id: 'system',
+      email: 'system@bugflow.internal',
+      name: 'System',
       role: 'ADMIN',
+      team: null,
     },
   })
+  console.log('✅ System user created:', systemUser.id)
 
-  console.log(`✅ Created admin user: ${adminUser.email}`)
+  // Create demo admin user
+  const adminUser = await prisma.user.upsert({
+    where: { email: 'admin@bugflow.com' },
+    update: {},
+    create: {
+      email: 'admin@bugflow.com',
+      name: 'Admin User',
+      role: 'ADMIN',
+      team: null,
+    },
+  })
+  console.log('✅ Admin user created:', adminUser.email)
 
-  // Create sample engineers
-  console.log('Creating sample engineers...')
-  const engineers = await Promise.all([
-    prisma.user.upsert({
-      where: { email: 'security.engineer@company.com' },
-      update: {},
-      create: {
-        email: 'security.engineer@company.com',
-        name: 'Alex Security',
-        role: 'ENGINEER',
-        team: 'security',
-      },
-    }),
-    prisma.user.upsert({
-      where: { email: 'frontend.engineer@company.com' },
-      update: {},
-      create: {
-        email: 'frontend.engineer@company.com',
-        name: 'Sarah Frontend',
-        role: 'ENGINEER',
-        team: 'frontend',
-      },
-    }),
-    prisma.user.upsert({
-      where: { email: 'backend.engineer@company.com' },
-      update: {},
-      create: {
-        email: 'backend.engineer@company.com',
-        name: 'Mike Backend',
-        role: 'ENGINEER',
-        team: 'backend',
-      },
-    }),
-    prisma.user.upsert({
-      where: { email: 'infra.engineer@company.com' },
-      update: {},
-      create: {
-        email: 'infra.engineer@company.com',
-        name: 'Lisa Infrastructure',
-        role: 'ENGINEER',
-        team: 'infrastructure',
-      },
-    }),
-  ])
+  // Create demo engineer users
+  const securityEngineer = await prisma.user.upsert({
+    where: { email: 'security.engineer@company.com' },
+    update: {},
+    create: {
+      email: 'security.engineer@company.com',
+      name: 'Security Engineer',
+      role: 'ENGINEER',
+      team: 'security',
+    },
+  })
+  console.log('✅ Security engineer created:', securityEngineer.email)
 
-  console.log(`✅ Created ${engineers.length} engineers`)
+  const frontendEngineer = await prisma.user.upsert({
+    where: { email: 'frontend.engineer@company.com' },
+    update: {},
+    create: {
+      email: 'frontend.engineer@company.com',
+      name: 'Frontend Engineer',
+      role: 'ENGINEER',
+      team: 'frontend',
+    },
+  })
+  console.log('✅ Frontend engineer created:', frontendEngineer.email)
 
-  // Create sample viewer
-  console.log('Creating sample viewer...')
-  const viewer = await prisma.user.upsert({
+  const backendEngineer = await prisma.user.upsert({
+    where: { email: 'backend.engineer@company.com' },
+    update: {},
+    create: {
+      email: 'backend.engineer@company.com',
+      name: 'Backend Engineer',
+      role: 'ENGINEER',
+      team: 'backend',
+    },
+  })
+  console.log('✅ Backend engineer created:', backendEngineer.email)
+
+  const infraEngineer = await prisma.user.upsert({
+    where: { email: 'infra.engineer@company.com' },
+    update: {},
+    create: {
+      email: 'infra.engineer@company.com',
+      name: 'Infrastructure Engineer',
+      role: 'ENGINEER',
+      team: 'infrastructure',
+    },
+  })
+  console.log('✅ Infrastructure engineer created:', infraEngineer.email)
+
+  // Create demo viewer user
+  const viewerUser = await prisma.user.upsert({
     where: { email: 'viewer@company.com' },
     update: {},
     create: {
       email: 'viewer@company.com',
-      name: 'John Viewer',
+      name: 'Security Viewer',
       role: 'VIEWER',
+      team: 'security',
     },
   })
+  console.log('✅ Viewer user created:', viewerUser.email)
 
-  console.log(`✅ Created viewer: ${viewer.email}`)
-
-  // Create sample bug reports
-  console.log('Creating sample bug reports...')
-  const sampleReports = [
+  // Create demo teams
+  const teams = [
     {
-      title: 'Cross-Site Scripting (XSS) in Search Form',
-      description: `I discovered a reflected XSS vulnerability in the search functionality of the application. 
+      name: 'Security Team',
+      description: 'Handles authentication, authorization, and cryptography issues',
+      bugTypes: ['Authentication Bypass', 'Authorization', 'CSRF', 'Session Management', 'Cryptography', 'Information Disclosure'],
+    },
+    {
+      name: 'Frontend Team',
+      description: 'Handles client-side vulnerabilities and UI security',
+      bugTypes: ['XSS', 'DOM-based XSS', 'Client-side Injection', 'CORS', 'Content Security Policy'],
+    },
+    {
+      name: 'Backend Team',
+      description: 'Handles server-side logic and API security',
+      bugTypes: ['SQL Injection', 'API Security', 'Input Validation', 'Business Logic', 'Command Injection', 'Path Traversal'],
+    },
+    {
+      name: 'Infrastructure Team',
+      description: 'Handles network, server, and deployment security',
+      bugTypes: ['Network Security', 'Denial of Service', 'Configuration', 'Server-Side Request Forgery', 'Remote Code Execution'],
+    },
+  ]
 
-**Steps to Reproduce:**
-1. Navigate to the search page
-2. Enter the following payload in the search field: <script>alert('XSS')</script>
-3. Submit the form
-4. The script executes in the browser
+  for (const team of teams) {
+    const createdTeam = await prisma.team.upsert({
+      where: { name: team.name },
+      update: {
+        description: team.description,
+        bugTypes: team.bugTypes,
+      },
+      create: {
+        name: team.name,
+        description: team.description,
+        bugTypes: team.bugTypes,
+      },
+    })
+    console.log('✅ Team created:', createdTeam.name)
+  }
 
-**Impact:**
-This vulnerability allows attackers to execute arbitrary JavaScript code in the context of other users' browsers, potentially leading to session hijacking, credential theft, or other malicious activities.
-
-**Recommendation:**
-Implement proper input validation and output encoding for all user-supplied data.`,
-      affectedSystem: 'Search Module',
+  // Create some demo reports for testing
+  const demoReports = [
+    {
+      title: 'Cross-Site Scripting in User Profile',
+      description: 'The user profile page allows injection of malicious JavaScript code through the bio field. When other users view the profile, the script executes in their browser context, potentially stealing session cookies or performing actions on their behalf. Steps to reproduce: 1. Navigate to profile edit page 2. Enter <script>alert("XSS")</script> in bio field 3. Save profile 4. View profile as another user 5. JavaScript alert appears',
+      affectedSystem: 'User Profile Page',
       severity: 'HIGH',
-      bugType: 'XSS',
-      reporterName: 'John Researcher',
-      reporterEmail: 'john@security.com',
+      reporterName: 'Security Researcher',
+      reporterEmail: 'researcher@security.com',
       status: 'NEW',
     },
     {
-      title: 'SQL Injection in User Profile Update',
-      description: `A SQL injection vulnerability exists in the user profile update functionality.
-
-**Steps to Reproduce:**
-1. Log in to the application
-2. Navigate to profile settings
-3. In the "About Me" field, enter: '; DROP TABLE users; --
-4. Save the profile
-
-**Impact:**
-This vulnerability could allow attackers to:
-- Extract sensitive data from the database
-- Modify or delete database records
-- Potentially gain administrative access
-
-**Proof of Concept:**
-The application appears to be using dynamic SQL queries without proper parameterization.`,
-      affectedSystem: 'User Management',
+      title: 'SQL Injection in Search Functionality',
+      description: 'The search endpoint is vulnerable to SQL injection attacks. By manipulating the search parameter, an attacker can extract sensitive data from the database or potentially gain administrative access. Steps to reproduce: 1. Navigate to search page 2. Enter \' OR 1=1-- in search field 3. Submit search 4. All records are returned regardless of search term 5. Further exploitation possible with UNION queries',
+      affectedSystem: 'Search API',
       severity: 'CRITICAL',
-      bugType: 'SQL Injection',
-      reporterName: 'Alice Hacker',
-      reporterEmail: 'alice@pentest.com',
-      status: 'IN_PROGRESS',
-      assignedEngineerId: engineers.find(e => e.team === 'backend')?.id,
+      reporterName: 'Bug Hunter',
+      reporterEmail: 'hunter@bugbounty.com',
+      status: 'NEW',
     },
     {
-      title: 'Authentication Bypass via Parameter Manipulation',
-      description: `I found a way to bypass authentication by manipulating request parameters.
-
-**Steps to Reproduce:**
-1. Attempt to access a protected resource
-2. Intercept the request
-3. Add parameter: admin=true
-4. Forward the request
-
-**Impact:**
-Unauthorized access to administrative functions and sensitive data.
-
-**Additional Notes:**
-This appears to be related to insufficient server-side validation of user roles.`,
-      affectedSystem: 'Authentication System',
-      severity: 'CRITICAL',
-      bugType: 'Authentication Bypass',
-      reporterName: 'Bob Security',
-      reporterEmail: 'bob@bugbounty.com',
+      title: 'Insecure Direct Object Reference in File Download',
+      description: 'The file download endpoint does not properly validate user permissions, allowing access to files belonging to other users. By modifying the file ID parameter, users can download sensitive documents they should not have access to. Steps to reproduce: 1. Login as regular user 2. Navigate to file download URL 3. Change file ID to another user\'s file 4. File downloads successfully without permission check',
+      affectedSystem: 'File Management System',
+      severity: 'HIGH',
+      reporterName: 'Ethical Hacker',
+      reporterEmail: 'ethical@hacker.com',
       status: 'NEW',
     },
   ]
 
-  const createdReports = []
-  for (const reportData of sampleReports) {
-    const report = await prisma.report.create({
-      data: reportData,
+  for (const report of demoReports) {
+    const createdReport = await prisma.report.create({
+      data: report,
     })
-    createdReports.push(report)
+    console.log('✅ Demo report created:', createdReport.title)
   }
 
-  console.log(`✅ Created ${createdReports.length} sample reports`)
-
-  // Create sample assignments
-  console.log('Creating sample assignments...')
-  const assignments = []
-  for (const report of createdReports) {
-    if (report.assignedEngineerId) {
-      const assignment = await prisma.assignment.create({
-        data: {
-          reportId: report.id,
-          engineerId: report.assignedEngineerId,
-          assignedBy: adminUser.id,
-          status: 'ACTIVE',
-        },
-      })
-      assignments.push(assignment)
-    }
-  }
-
-  console.log(`✅ Created ${assignments.length} assignments`)
-
-  // Create sample comments
-  console.log('Creating sample comments...')
-  const comments = []
-  for (const report of createdReports.slice(0, 2)) {
-    const comment = await prisma.reportComment.create({
-      data: {
-        reportId: report.id,
-        userId: adminUser.id,
-        comment: 'This report has been reviewed and assigned to the appropriate team for investigation.',
-      },
-    })
-    comments.push(comment)
-  }
-
-  console.log(`✅ Created ${comments.length} comments`)
-
-  console.log('🎉 Database seed completed successfully!')
-  console.log('\n📊 Summary:')
-  console.log(`- Teams: ${teams.length}`)
-  console.log(`- Users: ${engineers.length + 2}`) // +2 for admin and viewer
-  console.log(`- Reports: ${createdReports.length}`)
-  console.log(`- Assignments: ${assignments.length}`)
-  console.log(`- Comments: ${comments.length}`)
-  console.log('\n🔐 Default Admin Credentials:')
-  console.log(`Email: ${adminUser.email}`)
-  console.log(`Password: ${process.env.ADMIN_PASSWORD || 'admin123'}`)
+  console.log('🎉 Database seeding completed successfully!')
+  console.log('\n📋 Demo Credentials:')
+  console.log('Admin: admin@bugflow.com / password123')
+  console.log('Security Engineer: security.engineer@company.com / password123')
+  console.log('Frontend Engineer: frontend.engineer@company.com / password123')
+  console.log('Backend Engineer: backend.engineer@company.com / password123')
+  console.log('Infrastructure Engineer: infra.engineer@company.com / password123')
+  console.log('Viewer: viewer@company.com / password123')
 }
 
 main()
-  .then(async () => {
-    await prisma.$disconnect()
-  })
-  .catch(async (e) => {
-    console.error('❌ Seed failed:', e)
-    await prisma.$disconnect()
+  .catch((e) => {
+    console.error('❌ Seeding failed:', e)
     process.exit(1)
+  })
+  .finally(async () => {
+    await prisma.$disconnect()
   })

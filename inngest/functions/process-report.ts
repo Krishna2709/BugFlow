@@ -2,6 +2,7 @@ import { inngest } from '../client'
 import { prisma } from '@/lib/db'
 import { bugAnalysisAgent } from '@/lib/ai/bug-analysis-agent'
 import { engineerAssignmentService } from '@/lib/assignment/engineer-assignment'
+import { logger, withDatabaseLogging } from '@/lib/logger'
 
 export const processReport = inngest.createFunction(
   { id: 'process-report' },
@@ -11,13 +12,24 @@ export const processReport = inngest.createFunction(
 
     // Step 1: Fetch report data
     const report = await step.run('fetch-report', async () => {
-      const report = await prisma.report.findUnique({
-        where: { id: reportId },
+      logger.info('Fetching report for processing', { reportId }, 'INNGEST_PROCESS')
+      
+      const report = await withDatabaseLogging('findUnique', 'report', async () => {
+        return prisma.report.findUnique({
+          where: { id: reportId },
+        })
       })
 
       if (!report) {
+        logger.error('Report not found for processing', { reportId }, 'INNGEST_PROCESS')
         throw new Error(`Report ${reportId} not found`)
       }
+
+      logger.info('Report fetched successfully', {
+        reportId,
+        title: report.title.substring(0, 50),
+        status: report.status
+      }, 'INNGEST_PROCESS')
 
       return report
     })
@@ -25,18 +37,21 @@ export const processReport = inngest.createFunction(
     // Step 2: AI Analysis
     const analysis = await step.run('ai-analysis', async () => {
       try {
+        logger.info('Starting AI analysis', { reportId }, 'INNGEST_PROCESS')
+        
         const result = await bugAnalysisAgent.analyzeReport({
           title: report.title,
           description: report.description,
           affectedSystem: report.affectedSystem || undefined,
         })
 
-        console.log('AI Analysis completed:', result)
+        logger.aiAnalysis(reportId, result)
         return result
       } catch (error) {
-        console.error('AI Analysis failed:', error)
+        logger.aiAnalysisError(reportId, error)
+        
         // Return fallback analysis
-        return {
+        const fallbackResult = {
           bugType: 'Unknown',
           severity: 'MEDIUM' as const,
           affectedSystem: report.affectedSystem || 'Unknown',
@@ -45,19 +60,33 @@ export const processReport = inngest.createFunction(
           technicalDetails: ['AI analysis unavailable'],
           suggestedAssignment: 'security',
         }
+        
+        logger.warn('Using fallback AI analysis', { reportId, fallbackResult }, 'INNGEST_PROCESS')
+        return fallbackResult
       }
     })
 
     // Step 3: Generate embedding for duplicate detection
     const embedding = await step.run('generate-embedding', async () => {
       try {
+        logger.info('Generating embedding for duplicate detection', { reportId }, 'INNGEST_PROCESS')
+        
         const embeddingVector = await bugAnalysisAgent.generateEmbedding(
           `${report.title} ${report.description}`
         )
-        console.log('Embedding generated successfully')
+        
+        if (embeddingVector) {
+          logger.info('Embedding generated successfully', {
+            reportId,
+            vectorLength: embeddingVector.length
+          }, 'INNGEST_PROCESS')
+        } else {
+          logger.warn('Embedding generation returned null', { reportId }, 'INNGEST_PROCESS')
+        }
+        
         return embeddingVector
       } catch (error) {
-        console.error('Embedding generation failed:', error)
+        logger.error('Embedding generation failed', { reportId, error }, 'INNGEST_PROCESS')
         return null
       }
     })
@@ -65,26 +94,40 @@ export const processReport = inngest.createFunction(
     // Step 4: Check for duplicates
     const duplicates = await step.run('check-duplicates', async () => {
       if (!embedding) {
-        console.log('Skipping duplicate check - no embedding available')
+        logger.warn('Skipping duplicate check - no embedding available', { reportId }, 'INNGEST_PROCESS')
         return []
       }
 
       try {
+        logger.info('Checking for duplicate reports', { reportId }, 'INNGEST_PROCESS')
+        
         const similarReports = await bugAnalysisAgent.findSimilarReports(
           embedding,
           0.85,
           reportId
         )
-        console.log(`Found ${similarReports.length} similar reports`)
+        
+        logger.duplicateDetection(reportId, similarReports.length, 0.85)
+        
+        if (similarReports.length > 0) {
+          logger.warn('Potential duplicates found', {
+            reportId,
+            duplicateCount: similarReports.length,
+            topMatch: similarReports[0]
+          }, 'INNGEST_PROCESS')
+        }
+        
         return similarReports
       } catch (error) {
-        console.error('Duplicate detection failed:', error)
+        logger.error('Duplicate detection failed', { reportId, error }, 'INNGEST_PROCESS')
         return []
       }
     })
 
     // Step 5: Update report with analysis results
     await step.run('update-report-analysis', async () => {
+      logger.info('Updating report with analysis results', { reportId }, 'INNGEST_PROCESS')
+      
       const updateData: any = {
         bugType: analysis.bugType,
         severity: analysis.severity,
@@ -103,14 +146,26 @@ export const processReport = inngest.createFunction(
       if (duplicates.length > 0) {
         updateData.status = 'DUPLICATE'
         updateData.duplicateOfId = duplicates[0].id
+        logger.warn('Marking report as duplicate', {
+          reportId,
+          duplicateOfId: duplicates[0].id,
+          similarity: duplicates[0].similarity
+        }, 'INNGEST_PROCESS')
       }
 
-      await prisma.report.update({
-        where: { id: reportId },
-        data: updateData,
+      await withDatabaseLogging('update', 'report', async () => {
+        return prisma.report.update({
+          where: { id: reportId },
+          data: updateData,
+        })
       })
 
-      console.log('Report updated with analysis results')
+      logger.info('Report updated with analysis results', {
+        reportId,
+        bugType: analysis.bugType,
+        severity: analysis.severity,
+        isDuplicate: duplicates.length > 0
+      }, 'INNGEST_PROCESS')
     })
 
     // Step 6: Assign engineer if not duplicate
@@ -167,18 +222,35 @@ export const processReport = inngest.createFunction(
       // Step 6b: Handle duplicate case
       await step.run('handle-duplicate', async () => {
         try {
+          logger.info('Handling duplicate report', {
+            reportId,
+            duplicateOfId: duplicates[0].id
+          }, 'INNGEST_PROCESS')
+          
+          // Ensure system user exists before creating comment
+          const systemUser = await prisma.user.findUnique({
+            where: { id: 'system' }
+          })
+          
+          if (!systemUser) {
+            logger.error('System user not found, cannot create duplicate comment', { reportId }, 'INNGEST_PROCESS')
+            return
+          }
+          
           // Add comment about duplicate detection
-          await prisma.reportComment.create({
-            data: {
-              reportId,
-              userId: 'system', // We'll need to handle system user
-              comment: `This report has been automatically marked as a duplicate of report ${duplicates[0].id} (${duplicates[0].title}) with ${Math.round(duplicates[0].similarity * 100)}% similarity.`,
-            },
+          await withDatabaseLogging('create', 'reportComment', async () => {
+            return prisma.reportComment.create({
+              data: {
+                reportId,
+                userId: 'system',
+                comment: `This report has been automatically marked as a duplicate of report ${duplicates[0].id} (${duplicates[0].title}) with ${Math.round(duplicates[0].similarity * 100)}% similarity.`,
+              },
+            })
           })
 
-          console.log('Duplicate handling completed')
+          logger.info('Duplicate handling completed', { reportId }, 'INNGEST_PROCESS')
         } catch (error) {
-          console.error('Failed to handle duplicate:', error)
+          logger.error('Failed to handle duplicate', { reportId, error }, 'INNGEST_PROCESS')
         }
       })
     }
